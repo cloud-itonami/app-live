@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <title>live.etzhayyim.com — kami-app-live v1</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      background: #0a0810;
+      color: #fdf6e3;
+      font-family: 'Nunito', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    #gc { display: block; width: 100vw; height: 100vh; }
+    #hud {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      padding: 10px 14px;
+      background: rgba(255, 255, 255, 0.92);
+      color: #1a1a1a;
+      border-radius: 16px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+      font-weight: 700;
+      font-size: 13px;
+      line-height: 1.4;
+      pointer-events: none;
+      min-width: 180px;
+    }
+    #cheers {
+      position: fixed;
+      bottom: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      pointer-events: auto;
+    }
+    #cheers button {
+      font: inherit;
+      font-weight: 800;
+      padding: 12px 18px;
+      border: none;
+      border-radius: 14px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+      cursor: pointer;
+      color: #0a0810;
+      transition: transform 0.06s ease-out;
+    }
+    #cheers button:active { transform: scale(0.94); }
+    #cheers .clap { background: #ffd35a; }
+    #cheers .yell { background: #ff6f91; }
+    #cheers .stick { background: #6fc8ff; }
+    #cheers .jump { background: #6fff9b; }
+    #start {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(10, 8, 16, 0.85);
+      backdrop-filter: blur(6px);
+      z-index: 10;
+    }
+    #start button {
+      font: inherit;
+      font-weight: 900;
+      font-size: 18px;
+      padding: 22px 36px;
+      border: none;
+      border-radius: 22px;
+      background: #ff6f91;
+      color: #0a0810;
+      cursor: pointer;
+      box-shadow: 0 12px 36px rgba(255, 111, 145, 0.35);
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gc"></canvas>
+  <div id="hud">
+    <div>live.etzhayyim.com</div>
+    <div id="track">loading…</div>
+    <div id="phase">— bpm</div>
+    <div id="loud">cheers: 0</div>
+    <div id="presence">viewers: 1</div>
+  </div>
+  <div id="cheers">
+    <button class="clap" data-kind="clap">CLAP</button>
+    <button class="yell" data-kind="yell">YELL</button>
+    <button class="stick" data-kind="lightStick">LIGHT</button>
+    <button class="jump" data-kind="jump">JUMP</button>
+  </div>
+  <div id="start"><button id="enter">▶ enter the live</button></div>
+
+  <script>
+    // ──────────────────────────────────────────────────────────────
+    // Web Audio synth — `kami-live-sound`. Pure synthesis, no files.
+    // Bridges:
+    //   window.kamiPlayDrum(slot, velocity)
+    //   window.kamiPlaySynth(midi, velocity, durationSeconds)
+    //   window.kamiPlayPad(m0, m1, m2, m3, m4)
+    //   window.kamiSynthStop()
+    // ──────────────────────────────────────────────────────────────
+    let ctx, master, padGain, padOscs = [];
+
+    function initAudio() {
+      if (ctx) return;
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      master = ctx.createGain();
+      master.gain.value = 0.7;
+      master.connect(ctx.destination);
+
+      // A small "sidechain" duck — every kick triggers a quick volume
+      // dip on `padGain` so the pad pumps with the beat, classic EDM.
+      padGain = ctx.createGain();
+      padGain.gain.value = 0.18;
+      padGain.connect(master);
+    }
+
+    const midiToHz = (m) => 440 * Math.pow(2, (m - 69) / 12);
+
+    function envelope(node, t, attack, decay, sustainLevel, release, peak) {
+      node.gain.cancelScheduledValues(t);
+      node.gain.setValueAtTime(0, t);
+      node.gain.linearRampToValueAtTime(peak, t + attack);
+      node.gain.exponentialRampToValueAtTime(Math.max(sustainLevel * peak, 0.0001), t + attack + decay);
+      node.gain.exponentialRampToValueAtTime(0.0001, t + attack + decay + release);
+    }
+
+    // Kick: low sine pitch sweep + short click.
+    function playKick(vel = 1.0) {
+      const t = ctx.currentTime;
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(120, t);
+      o.frequency.exponentialRampToValueAtTime(40, t + 0.18);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(0.9 * vel, t + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+      o.connect(g).connect(master);
+      o.start(t); o.stop(t + 0.35);
+
+      // Sidechain duck on pad.
+      padGain.gain.cancelScheduledValues(t);
+      padGain.gain.setValueAtTime(0.04, t);
+      padGain.gain.exponentialRampToValueAtTime(0.18, t + 0.3);
+    }
+
+    function playSnare(vel = 1.0) {
+      const t = ctx.currentTime;
+      // Noise burst.
+      const buf = ctx.createBuffer(1, ctx.sampleRate * 0.2, ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+      const n = ctx.createBufferSource();
+      n.buffer = buf;
+      const ng = ctx.createGain();
+      const hp = ctx.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.value = 1200;
+      ng.gain.setValueAtTime(0.6 * vel, t);
+      ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+      n.connect(hp).connect(ng).connect(master);
+      n.start(t); n.stop(t + 0.2);
+      // Tonal body.
+      const o = ctx.createOscillator();
+      o.type = 'triangle';
+      o.frequency.value = 200;
+      const og = ctx.createGain();
+      og.gain.setValueAtTime(0.35 * vel, t);
+      og.gain.exponentialRampToValueAtTime(0.0001, t + 0.1);
+      o.connect(og).connect(master);
+      o.start(t); o.stop(t + 0.12);
+    }
+
+    function playHat(vel = 1.0, openMs = 40) {
+      const t = ctx.currentTime;
+      const buf = ctx.createBuffer(1, ctx.sampleRate * 0.1, ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      const n = ctx.createBufferSource();
+      n.buffer = buf;
+      const hp = ctx.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.value = 7000;
+      const g = ctx.createGain();
+      const dur = openMs / 1000;
+      g.gain.setValueAtTime(0.25 * vel, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      n.connect(hp).connect(g).connect(master);
+      n.start(t); n.stop(t + dur + 0.02);
+    }
+
+    function playClap(vel = 1.0) {
+      const t = ctx.currentTime;
+      // Three quick noise bursts to emulate the 808 clap.
+      for (let i = 0; i < 3; i++) {
+        const buf = ctx.createBuffer(1, ctx.sampleRate * 0.05, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let j = 0; j < d.length; j++) d[j] = (Math.random() * 2 - 1) * (1 - j / d.length);
+        const n = ctx.createBufferSource();
+        n.buffer = buf;
+        const bp = ctx.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.frequency.value = 1500;
+        bp.Q.value = 0.8;
+        const g = ctx.createGain();
+        g.gain.value = 0.5 * vel;
+        const start = t + i * 0.012;
+        g.gain.setValueAtTime(0.5 * vel, start);
+        g.gain.exponentialRampToValueAtTime(0.0001, start + 0.05);
+        n.connect(bp).connect(g).connect(master);
+        n.start(start); n.stop(start + 0.06);
+      }
+    }
+
+    const drumFns = [
+      playKick,                       // 0 Kick
+      playSnare,                      // 1 Snare
+      (v) => playHat(v, 40),          // 2 ClosedHat
+      (v) => playHat(v, 200),         // 3 OpenHat
+      playClap,                       // 4 Clap
+      (v) => playHat(v, 600),         // 5 Crash (long hat)
+      (v) => { playKick(v * 0.6); playSnare(v * 0.4); }, // 6 Tom proxy
+      (v) => playHat(v * 0.7, 30),    // 7 Rim proxy
+    ];
+
+    window.kamiPlayDrum = (slot, vel) => {
+      if (!ctx) return;
+      const fn = drumFns[slot];
+      if (fn) fn(vel || 1.0);
+    };
+
+    // Bass / lead: square + lowpass envelope.
+    window.kamiPlaySynth = (midi, vel, dur) => {
+      if (!ctx || !midi) return;
+      const t = ctx.currentTime;
+      const o = ctx.createOscillator();
+      o.type = midi < 50 ? 'sawtooth' : 'square';
+      o.frequency.value = midiToHz(midi);
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = midi < 50 ? 600 : 2400;
+      lp.Q.value = 4;
+      const g = ctx.createGain();
+      const peak = 0.18 * (vel || 1);
+      const d = Math.max(0.05, dur || 0.4);
+      envelope(g, t, 0.005, d * 0.4, 0.4, d * 0.6, peak);
+      o.connect(lp).connect(g).connect(master);
+      o.start(t); o.stop(t + d + 0.1);
+    };
+
+    // Pad: hold a 5-voice chord. Replaces any prior pad.
+    window.kamiPlayPad = (m0, m1, m2, m3, m4) => {
+      if (!ctx) return;
+      const t = ctx.currentTime;
+      // Fade out previous voices.
+      padOscs.forEach(({ o, g }) => {
+        try {
+          g.gain.cancelScheduledValues(t);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+          o.stop(t + 0.5);
+        } catch (e) { /* already stopped */ }
+      });
+      padOscs = [];
+      [m0, m1, m2, m3, m4].forEach((m) => {
+        if (!m) return;
+        const o = ctx.createOscillator();
+        o.type = 'triangle';
+        o.frequency.value = midiToHz(m);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.18, t + 0.6);
+        o.connect(g).connect(padGain);
+        o.start(t);
+        padOscs.push({ o, g });
+      });
+    };
+
+    window.kamiSynthStop = () => {
+      if (!ctx) return;
+      const t = ctx.currentTime;
+      padOscs.forEach(({ o, g }) => {
+        try {
+          g.gain.cancelScheduledValues(t);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+          o.stop(t + 0.5);
+        } catch (e) {}
+      });
+      padOscs = [];
+    };
+  </script>
+
+  <script type="module">
+    import init, { run_live_v1, live_send_cheer, live_set_room } from './live-v1/kami_app_live.js';
+
+    let initialized = false;
+    document.getElementById('enter').addEventListener('click', async () => {
+      if (initialized) return;
+      initialized = true;
+      initAudio();
+      document.getElementById('start').remove();
+      await init({ module_or_path: './live-v1/kami_app_live_bg.wasm' });
+
+      // ─── Real-time room sync ────────────────────────────────────
+      // Open a WebSocket to the room DO. Every cheer (local or remote)
+      // arrives through this channel so all viewers see the same
+      // loudness in lock-step. HTTP fallback if WS fails.
+      const ROOM_DID = 'did:web:live.etzhayyim.com:room:demo';
+      const WS_HOST = location.host.startsWith('localhost') || location.host.startsWith('127.')
+        ? `ws://${location.host}`
+        : `wss://l1ve9pq4.etzhayyim.com`;
+      const ORIGIN_ID = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+      let ws = null;
+      let wsReady = false;
+      const connectWs = () => {
+        try {
+          ws = new WebSocket(`${WS_HOST}/ws/${encodeURIComponent(ROOM_DID)}`);
+        } catch (e) {
+          console.warn('[live] ws ctor failed', e);
+          return;
+        }
+        ws.addEventListener('open', () => { wsReady = true; });
+        ws.addEventListener('close', () => {
+          wsReady = false;
+          // Auto-reconnect with backoff.
+          setTimeout(connectWs, 2000);
+        });
+        ws.addEventListener('error', () => { /* close handler will retry */ });
+        ws.addEventListener('message', (ev) => {
+          let msg;
+          try { msg = JSON.parse(ev.data); } catch { return; }
+          if (msg.type === 'init') {
+            document.getElementById('presence').textContent = `viewers: ${msg.viewerCount ?? 1}`;
+            (msg.recent ?? []).forEach((c) => live_send_cheer(c.kind, c.weight));
+            // Track label fallback for when the joinRoom XRPC fetch
+            // didn't reach a worker that knows the room.
+            if (msg.state) applyRoomTrackLabel(msg.state);
+          } else if (msg.type === 'presence') {
+            document.getElementById('presence').textContent = `viewers: ${msg.viewerCount ?? 1}`;
+          } else if (msg.type === 'cheer') {
+            // Skip our own echo — we already fired locally. Other
+            // viewers' cheers pump into our show so we see them too.
+            if (msg.originId !== ORIGIN_ID) {
+              live_send_cheer(msg.kind, msg.weight ?? 1);
+            }
+            const loud = (Number(document.getElementById('loud').textContent.split(': ')[1]) || 0) + (msg.weight ?? 1);
+            document.getElementById('loud').textContent = `cheers: ${loud.toFixed(0)}`;
+          } else if (msg.type === 'stateChange') {
+            try {
+              live_set_room(JSON.stringify(msg.state));
+              document.getElementById('track').textContent = `▶ updated: ${msg.state.setlist?.length ?? 0} tracks`;
+            } catch (e) {
+              console.warn('[live] live_set_room failed', e);
+            }
+          }
+        });
+      };
+      connectWs();
+
+      window.kamiLive = window.kamiLive ?? {};
+      window.kamiLive.cheer = async (kind, weight = 1.0) => {
+        // Fire local instantly so the user's own button feels tight.
+        live_send_cheer(kind, weight);
+        // Send to DO via WS for fan-out; fall back to XRPC.
+        if (wsReady && ws && ws.readyState === WebSocket.OPEN) {
+          try {
+            ws.send(JSON.stringify({ type: 'cheer', kind, weight, originId: ORIGIN_ID }));
+            return;
+          } catch (e) { /* fall through to HTTP */ }
+        }
+        try {
+          await fetch('/xrpc/com.etzhayyim.apps.live.sendCheer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ roomDid: ROOM_DID, kind, weight }),
+          });
+        } catch (e) { /* offline = local only */ }
+      };
+
+      document.querySelectorAll('#cheers button').forEach((btn) => {
+        btn.addEventListener('click', () =>
+          window.kamiLive.cheer(btn.dataset.kind, 1.0)
+        );
+      });
+
+      // Bootstrap room state from XRPC. If the call fails (offline /
+      // worker not deployed) we fall back to the wasm `demo_show`.
+      let roomJson = null;
+      let roomState = null;
+      // Origin-relative first, then fall back to the canonical live
+      // worker (kotodama-l1ve9pq4) when this asset is served from the
+      // workers.dev shell that has no XRPC handlers of its own.
+      const XRPC_BASES = ['', 'https://live.etzhayyim.com', 'https://l1ve9pq4.etzhayyim.com'];
+      for (const base of XRPC_BASES) {
+        try {
+          const r = await fetch(`${base}/xrpc/com.etzhayyim.apps.live.joinRoom`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ roomDid: ROOM_DID }),
+          });
+          if (r.ok) {
+            roomJson = await r.text();
+            try { roomState = JSON.parse(roomJson); } catch (e) {}
+            break;
+          }
+        } catch (e) { /* try next base */ }
+      }
+
+      // Track label = first track of the served setlist. Updated again
+      // when the performer console pushes a `stateChange`.
+      function applyRoomTrackLabel(state) {
+        if (!state) return;
+        const t0 = state.setlist?.[0];
+        if (t0?.title) {
+          document.getElementById('track').textContent =
+            `▶ ${t0.title} · ${t0.bpm ?? state.bpm}bpm`;
+        }
+      }
+      applyRoomTrackLabel(roomState);
+
+      // Phase HUD. Prefer the wasm-published telemetry but fall back
+      // to JS-side fps + clock derivation so the line is never empty
+      // even if `with_hud_publish` doesn't reach the JS bridge.
+      let frames = 0;
+      let lastSample = performance.now();
+      let observedFps = 0;
+      function tickFps() {
+        frames += 1;
+        requestAnimationFrame(tickFps);
+      }
+      requestAnimationFrame(tickFps);
+      const showT0 = (roomState?.t0 ?? 0) * 1000;
+      const bpm = roomState?.bpm ?? 0;
+      setInterval(() => {
+        const now = performance.now();
+        const elapsed = now - lastSample;
+        if (elapsed > 0) {
+          observedFps = (frames * 1000) / elapsed;
+          frames = 0;
+          lastSample = now;
+        }
+        const hud = window.__kami_hud_live;
+        const fps = hud?.fps ?? observedFps;
+        const backend = hud?.backend ?? 'WebGpu';
+        let phaseStr = '';
+        if (showT0 && bpm) {
+          const showSecs = Math.max(0, (Date.now() - showT0) / 1000);
+          const beat = Math.floor((showSecs * bpm) / 60);
+          const bar = Math.floor(beat / 4);
+          const phrase = Math.floor(bar / 8);
+          phaseStr = ` · bar ${bar} · phrase ${phrase}`;
+        }
+        document.getElementById('phase').textContent =
+          `${fps.toFixed(0)} fps · ${backend}${phaseStr}`;
+      }, 250);
+
+      await run_live_v1('gc', roomJson ?? undefined);
+      // After the wasm boots, refresh the track label in case a
+      // stateChange already swapped the show in flight.
+      applyRoomTrackLabel(roomState);
+    });
+  </script>
+</body>
+</html>
