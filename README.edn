@@ -1,1 +1,6 @@
-{:schema "etzhayyim.repository/v1" :name "com-etzhayyim-app-live" :kind :app :canonical-metadata :edn}
+{:schema "etzhayyim.repository/v1"
+ :name "app-live"
+ :kind :app
+ :canonical-metadata :edn
+ :boundary {:role :live-show-application
+            :craft-library "kotoba-lang/live"}}
