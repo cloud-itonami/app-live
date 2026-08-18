@@ -5,18 +5,19 @@
   "observability": {
     "enabled": true
   },
-  "assets": {
-    "directory": "./svelte/.svelte-kit/cloudflare/client",
-    "binding": "ASSETS",
-    "html_handling": "auto-trailing-slash",
-    "not_found_handling": "none"
-  },
-  "compatibility_flags": [
-    "nodejs_compat"
-  ],
-  "main": "svelte/.svelte-kit/cloudflare/_worker.js",
+  // Compiled from src/app_live/worker.cljs by shadow-cljs (:target :esm).
+  // Before the cljs migration this pointed at svelte/.svelte-kit/cloudflare/_worker.js
+  // -- a build output absent from the tree, which svelte/ could not produce here.
+  // See docs/adr/0001.
+  "main": "dist/worker.js",
+  // No "assets" block: it bound ./svelte/.svelte-kit/cloudflare/client, the
+  // SvelteKit client build that no longer exists. static/live-v1/ is NOT that
+  // directory and was never served by this config -- see README.md.
+  // No "compatibility_flags": nodejs_compat was adapter-cloudflare's requirement.
+  // Removed only after `wrangler dev --local` served every route without it
+  // (docs/operator-quickstart.md S4.6).
   "vars": {
-    "APP_FRAMEWORK": "sveltekit-edge-bff",
+    "APP_FRAMEWORK": "cljs-esm-worker",
     "AGENTGATEWAY_MCP_ROUTER_URL": "https://mcp.etzhayyim.com/xrpc/com.etzhayyim.mcp.message"
   }
 }
