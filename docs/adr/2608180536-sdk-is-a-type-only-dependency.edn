@@ -1,0 +1,88 @@
+[{:db/id -1
+  :adr/id "2608180536"
+  :adr/title "@etzhayyim/sdk is a type-only dependency declared as a runtime one, and it is why app-live will not install"
+  :adr/status "accepted"
+  :adr/date "2026-08-18"
+  :adr/repo "cloud-itonami/app-live"
+  :adr/measured-on "darwin-arm64, Node v26.3.0, npm 11.16.0, pnpm 10.26.2"
+  :adr/base-commit "9c5330185d8cc73ee2dec7f838e324f81cae5c19"
+  :adr/context
+  "kotoba/package.json declares @etzhayyim/sdk in :dependencies (git+https, pinned
+   12314a0cc5ac2feb49dd9789d5c002398acb6988). No install in that directory succeeds.
+
+   Measured, in this order:
+
+   1. `npm install` -> code 1, 'git dep preparation failed', EALLOWSCRIPTS:
+      '--allow-scripts is not allowed in project-scoped installs'. npm >= 11.16
+      refuses the nested install it uses to prepare a git dependency.
+   2. `npm install --ignore-scripts` -> identical failure. The flag does not
+      reach the preparation subprocess, which spawns its own install with
+      --force --allow-scripts.
+   3. `npm install vitest typescript` (unrelated packages) -> identical failure.
+      npm prepares declared git deps regardless of what is being added, so the
+      directory is unusable for any install at all.
+   4. `pnpm install --ignore-scripts` -> ERR_PNPM_MISSING_PACKAGE_NAME on a
+      transitive dep, git+https://github.com/kotoba-lang/ipfs.git#main.
+   5. Both git remotes resolve (git ls-remote succeeds), so this is not an
+      access or availability problem.
+
+   Why the sdk needs preparation at all: its package.json sets
+   main ./dist/index.js with 'prepare': 'tsc', and its dependency tree includes
+   viem, @atproto/*, and six further kotoba-lang git dependencies."
+
+  :adr/decision
+  "Record the finding here and document the working path in
+   docs/operator-quickstart.md. Do NOT work around it by editing
+   kotoba/package.json in this repository.
+
+   The decisive measurement is that the sdk is not needed at runtime:
+
+   - kotoba/src/registry.ts imports it as `import type { Etzhayyim }`, which
+     TypeScript erases before emit.
+   - @etzhayyim/sdk-mock, which the tests actually construct, has zero import
+     statements — it declares its own interfaces and MockEtzhayyim class.
+
+   Verified by running the suite with vitest 4.1.10 grafted in from outside the
+   project and the pinned sdk-mock commit
+   (c857ff9be5310bf433bfe1e8d3c0f677e213d667) cloned into node_modules, and no
+   @etzhayyim/sdk present anywhere: Test Files 1 passed, Tests 3 passed (3).
+
+   So the package is uninstallable because of a dependency none of its runtime
+   code loads."
+
+  :adr/why-not-fixed-here
+  "A local edit cannot fix it. @etzhayyim/sdk-mock's own package.json declares
+   @etzhayyim/sdk in its :dependencies, so installing the mock pulls the sdk in
+   regardless of what app-live declares. Moving the entry to :devDependencies in
+   this repo changes nothing — it is still installed, and still prepared.
+
+   The fix belongs upstream, and there is a choice to be made there:
+     (a) publish @etzhayyim/sdk with prebuilt dist/ and type declarations so no
+         `prepare` step is required of consumers, or
+     (b) drop the sdk from @etzhayyim/sdk-mock's :dependencies, since the mock
+         does not import it, and let consumers depend on the sdk only for types.
+
+   Either removes the blocker for every kotoba reference implementation that
+   uses this mock, not just this one. app-live is not the right place to decide
+   which."
+
+  :adr/consequences
+  "Known and accepted, until upstream moves:
+
+   - Tests run, via the grafted-toolchain path in docs/operator-quickstart.md.
+     3/3 pass.
+   - `tsc --noEmit` does not pass. Without the sdk it reports TS2307 on
+     src/registry.ts:7 plus four TS7006 implicit-any errors at
+     src/registry.ts:112, 124, 161, 168. There is one root cause; the four are
+     downstream of the unresolved Etzhayyim type.
+   - Those implicit-any errors must not be silenced with explicit `any`
+     annotations. Doing so would hide the missing dependency while leaving the
+     package equally uninstallable.
+   - CI that runs `npm ci` or `npm install` against this package will fail on
+     npm >= 11.16, and the error text names scripts rather than the real cause,
+     which is why it is written out in full above."
+
+  :adr/scope
+  "This ADR records a dependency-declaration finding. It does not change the
+   substrate posture, the public/regulated split, or the migration state
+   described in MIGRATION-TODO.md and RESUME.edn."}]
