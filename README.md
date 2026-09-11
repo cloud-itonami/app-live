@@ -211,7 +211,7 @@ entry point — it does not replace either.
 ## Verification
 
 ```bash
-nbb scripts/verify-docs-claims.cljk .          # <dir> goes FIRST
+kbb --backend sci scripts/verify-docs-claims.cljk .          # <dir> goes FIRST
 ```
 
 exit 0 = everything agrees / 1 = a claim is false / **2 = could not answer**

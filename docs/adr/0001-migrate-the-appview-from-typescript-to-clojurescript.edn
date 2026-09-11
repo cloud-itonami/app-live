@@ -132,7 +132,7 @@ CSS は `shadow.resource/inline` で bundle に焼く（外部リクエストゼ
 - ページ描画 → design-quality score **100.00**（10 軸既定 / 12 軸 `--extra-axes`
   とも）、gate PASS
 - `scripts/verify-docs-claims.cljk`: 全 claim PASS、exit 0
-- `shadow-cljs release worker`（resource guard 経由）: 55 files / 12 compiled /
+- `amu compile --target wasm32-browser worker`（resource guard 経由）: 55 files / 12 compiled /
   **0 warnings** / 9.12s、`dist/worker.js` 246,094 B
 - `scripts/smoke-worker.cljk` が **ビルドされた bundle を import して 17 項目**
   を確認、exit 0
