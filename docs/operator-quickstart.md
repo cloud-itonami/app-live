@@ -22,7 +22,7 @@ step; this Worker does not serve it. See `README.md`.
 ```bash
 git clone https://github.com/cloud-itonami/app-live
 cd app-live
-npx --yes nbb scripts/verify-docs-claims.cljs .    # <dir> goes FIRST
+npx --yes nbb scripts/verify-docs-claims.cljk .    # <dir> goes FIRST
 ```
 
 Actual output (tail):
@@ -164,7 +164,7 @@ key to `:build-options`:
 Build `rc=0` — **shadow shipped the bundle.** What that bundle then does:
 
 ```
-$ nbb scripts/smoke-worker.cljs dist/worker.js
+$ nbb scripts/smoke-worker.cljk dist/worker.js
 PASS	default export has fetch	expected=true	actual=true
 UNDETERMINED	could not exercise the bundle: Cannot read properties of undefined (reading 'h')
 exit 2
@@ -176,7 +176,7 @@ and the only thing that noticed was the smoke.
 ## 5. Exercise the built bundle
 
 ```bash
-npx --yes nbb scripts/smoke-worker.cljs dist/worker.js
+npx --yes nbb scripts/smoke-worker.cljk dist/worker.js
 ```
 
 This is the **only** check that touches the artifact that gets deployed. The

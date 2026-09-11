@@ -16,7 +16,7 @@
 ;; Worker). They are pinned by file count AND byte total so they cannot grow
 ;; silently under cover of "the migration touched TypeScript".
 ;;
-;; Usage:  nbb scripts/verify-docs-claims.cljs [<dir>]     (<dir> FIRST, default ".")
+;; Usage:  nbb scripts/verify-docs-claims.cljk [<dir>]     (<dir> FIRST, default ".")
 ;; Exit:   0 every claim holds · 1 a claim is false · 2 could not answer
 
 (require '["node:fs" :as fs]
@@ -183,8 +183,8 @@
     ;; Asserted structurally (the view takes :routes, the worker passes the real
     ;; table) and NOT by forbidding a substring: a check a comment can fail is a
     ;; check about prose.
-    (let [v (slurp* "src/app_live/view.cljc")
-          w (slurp* "src/app_live/worker.cljs")]
+    (let [v (slurp* "src/app_live/view.cljk")
+          w (slurp* "src/app_live/worker.cljk")]
       (if (or (nil? v) (nil? w))
         (undet! "view.cljc or worker.cljs unreadable")
         (check! :page-renders-route-table true
@@ -198,10 +198,10 @@
         (undet! "README.md or docs/operator-quickstart.md unreadable")
         (do (check! :readme-names-the-bundle true
                     (and (str/includes? r "dist/worker.js")
-                         (str/includes? r "src/app_live/worker.cljs")))
+                         (str/includes? r "src/app_live/worker.cljk")))
             (check! :quickstart-names-the-build true
                     (and (str/includes? q "shadow-cljs release worker")
-                         (str/includes? q "scripts/smoke-worker.cljs"))))))))
+                         (str/includes? q "scripts/smoke-worker.cljk"))))))))
 
 (let [u @undetermined f @failures]
   (when (seq u)
