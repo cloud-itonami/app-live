@@ -22,7 +22,7 @@ step; this Worker does not serve it. See `README.md`.
 ```bash
 git clone https://github.com/cloud-itonami/app-live
 cd app-live
-npx --yes nbb scripts/verify-docs-claims.cljk .    # <dir> goes FIRST
+npx --yes kbb --backend sci scripts/verify-docs-claims.cljk .    # <dir> goes FIRST
 ```
 
 Actual output (tail):
@@ -57,7 +57,7 @@ cat > /tmp/run.cljs <<'RUN'
 (require '[cljs.test :refer [run-tests]] 'app-live.route-test)
 (run-tests 'app-live.route-test)
 RUN
-npx --yes nbb --classpath "$CP" /tmp/run.cljs
+npx --yes kbb --backend sci --classpath "$CP" /tmp/run.cljs
 ```
 
 Actual output:
@@ -90,8 +90,8 @@ cat > /tmp/render.cljs <<'REN'
                   :mcp-url "https://mcp.etzhayyim.com/xrpc/com.etzhayyim.mcp.message"}))
   (println "ok"))
 REN
-DDS="$K/jp-go-digital-design-system" npx --yes nbb --classpath "$CP" /tmp/render.cljs
-cd $K/design-quality && npx --yes nbb -m design-quality.cli score /tmp/live-page.html --min 95
+DDS="$K/jp-go-digital-design-system" npx --yes kbb --backend sci --classpath "$CP" /tmp/render.cljs
+cd $K/design-quality && npx --yes kbb --backend sci -m design-quality.cli score /tmp/live-page.html --min 95
 ```
 
 Actual output (tail):
@@ -119,7 +119,7 @@ resource governor). Do not call shadow directly:
 
 ```bash
 node ~/github/com-junkawasaki/scripts/resource-guard.mjs run build -- \
-  npx --yes shadow-cljs release worker
+  npx --yes amu compile --target wasm32-browser worker
 ls -la dist/worker.js
 ```
 
@@ -164,7 +164,7 @@ key to `:build-options`:
 Build `rc=0` — **shadow shipped the bundle.** What that bundle then does:
 
 ```
-$ nbb scripts/smoke-worker.cljk dist/worker.js
+$ kbb --backend sci scripts/smoke-worker.cljk dist/worker.js
 PASS	default export has fetch	expected=true	actual=true
 UNDETERMINED	could not exercise the bundle: Cannot read properties of undefined (reading 'h')
 exit 2
@@ -176,7 +176,7 @@ and the only thing that noticed was the smoke.
 ## 5. Exercise the built bundle
 
 ```bash
-npx --yes nbb scripts/smoke-worker.cljk dist/worker.js
+npx --yes kbb --backend sci scripts/smoke-worker.cljk dist/worker.js
 ```
 
 This is the **only** check that touches the artifact that gets deployed. The
