@@ -12,15 +12,15 @@ Protocol PDS records. It is not a video pipeline and not a chat server.
 **The appview was migrated from TypeScript/Svelte to ClojureScript on
 2026-08-18** ([ADR-0001](docs/adr/0001-migrate-the-appview-from-typescript-to-clojurescript.edn)).
 Every number below is re-derived from the tree by
-`scripts/verify-docs-claims.cljs`, which fails when the prose and the tree
+`scripts/verify-docs-claims.cljk`, which fails when the prose and the tree
 disagree.
 
 ## What gets deployed is the source you are reading
 
 ```
-src/app_live/route.cljc    which handler answers  ← pure .cljc, tested
-src/app_live/view.cljc     the page (jp-go-dds hiccup)  ← pure .cljc, tested
-src/app_live/worker.cljs   the only layer touching Request/Response
+src/app_live/route.cljk    which handler answers  ← pure .cljc, tested
+src/app_live/view.cljk     the page (jp-go-dds hiccup)  ← pure .cljc, tested
+src/app_live/worker.cljk   the only layer touching Request/Response
         ↓ shadow-cljs :target :esm
 dist/worker.js             ← what wrangler.jsonc's "main" points at
 ```
@@ -211,7 +211,7 @@ entry point — it does not replace either.
 ## Verification
 
 ```bash
-nbb scripts/verify-docs-claims.cljs .          # <dir> goes FIRST
+nbb scripts/verify-docs-claims.cljk .          # <dir> goes FIRST
 ```
 
 exit 0 = everything agrees / 1 = a claim is false / **2 = could not answer**

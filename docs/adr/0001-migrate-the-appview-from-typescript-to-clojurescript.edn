@@ -42,9 +42,9 @@ XRPC を実際に処理していた。ページは自分の隣にあるものを
 
 **appview を ClojureScript に移し、Svelte と、その TypeScript を撤去する。**
 
-    src/app_live/route.cljc    判断（どの handler が答えるか）
-    src/app_live/view.cljc     ページ（jp-go-dds の hiccup）
-    src/app_live/worker.cljs   Request/Response に触る唯一の層
+    src/app_live/route.cljk    判断（どの handler が答えるか）
+    src/app_live/view.cljk     ページ（jp-go-dds の hiccup）
+    src/app_live/worker.cljk   Request/Response に触る唯一の層
             ↓ shadow-cljs :target :esm
     dist/worker.js             wrangler.jsonc の main が指すもの
 
@@ -131,10 +131,10 @@ CSS は `shadow.resource/inline` で bundle に焼く（外部リクエストゼ
 - `app-live.route-test`: 6 tests / 26 assertions、0 failures（nbb、ビルド不要）
 - ページ描画 → design-quality score **100.00**（10 軸既定 / 12 軸 `--extra-axes`
   とも）、gate PASS
-- `scripts/verify-docs-claims.cljs`: 全 claim PASS、exit 0
+- `scripts/verify-docs-claims.cljk`: 全 claim PASS、exit 0
 - `shadow-cljs release worker`（resource guard 経由）: 55 files / 12 compiled /
   **0 warnings** / 9.12s、`dist/worker.js` 246,094 B
-- `scripts/smoke-worker.cljs` が **ビルドされた bundle を import して 17 項目**
+- `scripts/smoke-worker.cljk` が **ビルドされた bundle を import して 17 項目**
   を確認、exit 0
 - `wrangler dev --local`（workerd）で全 route を実際に叩いた（上表）
 

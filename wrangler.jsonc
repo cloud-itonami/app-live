@@ -5,7 +5,7 @@
   "observability": {
     "enabled": true
   },
-  // Compiled from src/app_live/worker.cljs by shadow-cljs (:target :esm).
+  // Compiled from src/app_live/worker.cljk by shadow-cljs (:target :esm).
   // Before the cljs migration this pointed at svelte/.svelte-kit/cloudflare/_worker.js
   // -- a build output absent from the tree, which svelte/ could not produce here.
   // See docs/adr/0001.
