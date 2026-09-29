@@ -114,7 +114,7 @@ smoke in §5, not by this number.
 
 ## 4. Build the bundle
 
-**Heavy builds are serialised workspace-wide** (superproject `CLAUDE.md`,
+**Heavy builds are serialised workspace-wide** (superproject `AGENTS.md`,
 resource governor). Do not call shadow directly:
 
 ```bash
