@@ -33,6 +33,28 @@
            (:route/doc r)])
         routes))
 
+(defn- page-routes
+  "静的版に載せる route。`:route/kind :page` の行だけ。
+
+  IPFS に置くのはこのページ 1 枚で、`/health` も `/xrpc/:nsid` も答える
+  プロセスが居ない。表は Worker と同じ route 表から**絞って**描く —— 静的版用に
+  別の表を手で持つと、それは移行前の `routes: []` と同じ『隣を知らない
+  literal』の再来になる。"
+  [routes]
+  (filterv #(= :page (:route/kind %)) routes))
+
+(defn- intro-section
+  "冒頭の説明。Worker 版と静的版で共有する —— どちらの面にも当てはまる文だけで
+  できている（Worker も中継も名乗らない）ので、版ごとに書き分ける理由が無い。"
+  []
+  (dds/section
+   {}
+   (dds/heading 1 "app-live — ライブ配信ルームのカタログ")
+   [:p {:class "live-lede"}
+    "配信ルームと配信予定（room / schedule）の公開カタログの appview である。"
+    "投げ銭（sendCheer）と AI VTuber のアバター生成はここには無く、"
+    "etzhayyim 側に残っている。"]))
+
 (defn body
   "opts:
    :routes    app-live.route/routes（この Worker が実際に答えるもの）
@@ -41,13 +63,7 @@
    :built-at  bundle のビルド時刻（不明なら nil）"
   [{:keys [routes vars mcp-url built-at]}]
   (dds/container
-   (dds/section
-    {}
-    (dds/heading 1 "app-live — ライブ配信ルームのカタログ")
-    [:p {:class "live-lede"}
-     "配信ルームと配信予定（room / schedule）の公開カタログの appview である。"
-     "投げ銭（sendCheer）と AI VTuber のアバター生成はここには無く、"
-     "etzhayyim 側に残っている。"])
+   (intro-section)
 
    (dds/section
     {:title "この面が答えるもの"}
@@ -88,13 +104,50 @@
     (when built-at
       [:p {:class "live-note"} "bundle build: " built-at]))))
 
+(defn static-body
+  "IPFS に公開する静的版の本文。opts は `body` と同じ形で、使うのは `:routes` だけ。
+
+  **静的版は Worker が答えるものを名乗らない。** `/health`・`/xrpc/:nsid`・
+  中継先 URL・env のキー名は、どれも Worker が動いていて初めて在るもので、
+  内容アドレスで配られる 1 枚の HTML には無い。Worker 版の『実行時の設定』と
+  『現在地』（deploy される bundle の話）は出さず、代わりにこの版が何であるか
+  —— どこが正本で、何が無いか —— を述べる。`:vars` と `:mcp-url` が渡されても
+  読まない（呼び出し側が Worker と同じ入力を渡しても漏れない）。
+
+  `static/`（観客シェル）はこの版に含めない。それは Worker も配信しておらず、
+  呼ぶ先（XRPC と room の WebSocket）がどれも答えない。"
+  [{:keys [routes]}]
+  (dds/container
+   (intro-section)
+
+   (dds/section
+    {:title "この版について"}
+    [:p {:class "live-lede"}
+     "これは IPFS に公開した、内容アドレスの静的版である。正規のアドレスは IPNS 名（"
+     [:span {:class "live-mono"} "ipns://k51…"]
+     "）で、DNS の名前はその別名にすぎない。"]
+    [:p {:class "live-note"}
+     "XRPC の中継は Worker 版にだけある。この版はページ 1 枚で、実行時の設定も"
+     "中継先も持たない。"])
+
+   (dds/section
+    {:title "この版が答えるもの"}
+    (dds/table {:caption "公開ルート"
+                :headers ["METHOD" "PATH" "何をするか"]
+                :rows (route-rows (page-routes routes))})
+    [:p {:class "live-note"}
+     "この表は Worker の route 表から、ページの行だけを描いている。"])))
+
 (defn render
-  "完全な HTML 文書。`css` は呼び出し側が渡す(ライブラリは I/O を持たない)。"
-  [{:keys [css] :as opts}]
+  "完全な HTML 文書。`css` は呼び出し側が渡す(ライブラリは I/O を持たない)。
+
+  `:static? true` で IPFS 用の静的版（`static-body`）を描く。無ければ Worker の
+  `GET /` と 1 バイトも違わない —— Worker はこの key を渡さない。"
+  [{:keys [css static?] :as opts}]
   (page/->page
    {:title "app-live — ライブ配信ルームのカタログ"
     :description "配信ルームと配信予定の公開カタログの appview。"
     :lang "ja"
     :css css
     :app-css (str tokens/bridge-css "\n" app-css)}
-   (body opts)))
+   (if static? (static-body opts) (body opts))))

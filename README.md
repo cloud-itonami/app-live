@@ -57,13 +57,13 @@ SvelteKit's rest parameter `[...path]`, so `event.params.path` was the whole
 remaining path and only the empty string was a 400. Narrowing that to a single
 segment would be a policy change wearing a migration's clothes.
 
-## What is actually in here — 31 files
+## What is actually in here — 34 files
 
 | Path | What it is | Migrated? |
 |---|---|---|
 | `src/app_live/` | The appview: route table, page, Worker entry. | **This is the migration.** |
-| `test/app_live/` | 6 tests / 26 assertions, no browser and no build needed. | added |
-| `scripts/` | `smoke-worker.cljs` (exercises the *built bundle*), `verify-docs-claims.cljs`. | added |
+| `test/app_live/` | 9 tests / 52 assertions, no browser and no build needed. | added |
+| `scripts/` | `smoke-worker.cljk` (exercises the *built bundle*), `verify-docs-claims.cljk`, `render-static.cljk` (the IPFS static edition, below). | added |
 | `deps.edn` / `shadow-cljs.edn` | Build. `:warnings-as-errors` lives under `:compiler-options`. | added |
 | `wrangler.jsonc` | Cloudflare Worker config, now serving `dist/worker.js`. | **changed on purpose** |
 | `kotoba/` | Reference implementation of the catalog in TypeScript: `createRoom` / `setRoomStatus` / `getRoom` / `listRooms` / `addSchedule` / `listSchedules` / `coverage`. Its own `package.json`, its own vitest suite (3/3 pass). | **NOT migrated — see below** |
@@ -207,6 +207,35 @@ CSS is there.
 this repo; `migration.edn` records the tree this was copied from, the files the
 migration was allowed to add, and the seven it removed. This file is the prose
 entry point — it does not replace either.
+
+## Static edition (IPFS)
+
+`GET /` answers the same page for every request, so it can also be published
+to IPFS with **no Worker behind it** — served from `ipns://k51…` and
+`k51….ipns` gateway origins; the IPNS name is canonical and DNS names are
+aliases. The Worker stays deployed in parallel and its page is unchanged.
+
+```bash
+K=~/github/com-junkawasaki/orgs/kotoba-lang
+KOTOBA_LANG=$K kbb --backend sci \
+  --classpath "$K/jp-go-digital-design-system/src:$K/html/src:$K/css/src" \
+  scripts/render-static.cljk .
+# → dist/static/index.html (dist/ is git-ignored)
+```
+
+It is `app-live.view/render` with `:static? true`. With no Worker there is no
+`/health`, no `/xrpc/:nsid`, no relay target and no runtime env, so the page
+names none of them (the route table keeps only `:route/kind :page` rows) and
+says instead that it is the content-addressed IPFS edition and that the XRPC
+relay exists only on the Worker edition. The script feeds the same inputs the
+Worker gets — vars read from `wrangler.jsonc` — and refuses to write (exit 1)
+if any of them leaks into the output. The output is deterministic (same tree +
+same DADS checkout → same sha256); it prints a `NOTE` when the local DADS
+checkout is not the sha `deps.edn` pins for the Worker bundle.
+
+**`static/` is not part of the static edition.** Its audience shell calls
+`/xrpc/…sendCheer` / `joinRoom` and a room WebSocket, none of which answer, and
+the Worker never served it (above). Only the Worker's `GET /` page is published.
 
 ## Verification
 
