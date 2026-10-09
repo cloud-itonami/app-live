@@ -57,7 +57,7 @@ SvelteKit's rest parameter `[...path]`, so `event.params.path` was the whole
 remaining path and only the empty string was a 400. Narrowing that to a single
 segment would be a policy change wearing a migration's clothes.
 
-## What is actually in here — 34 files
+## What is actually in here — 35 files
 
 | Path | What it is | Migrated? |
 |---|---|---|
@@ -209,6 +209,8 @@ migration was allowed to add, and the seven it removed. This file is the prose
 entry point — it does not replace either.
 
 ## Static edition (IPFS)
+
+Published name: `ipns://k51qzi5uqu5diepydqjicwbtaqc8fi64a4147dk8u5wjnjjkrhhkno2tz0yo1n` (recorded with the site CID in `kotoba.app.edn`). Public HTTPS entrance: `https://k51qzi5uqu5diepydqjicwbtaqc8fi64a4147dk8u5wjnjjkrhhkno2tz0yo1n.ipns.220-146-170-114.sslip.io/`.
 
 `GET /` answers the same page for every request, so it can also be published
 to IPFS with **no Worker behind it** — served from `ipns://k51…` and
